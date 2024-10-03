@@ -177,10 +177,7 @@ impl Goldrust {
     /// This method should be called when required,
     /// or Goldrust will panic when dropped.
     #[tracing::instrument(skip(self, content))]
-    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), Error>
-    where
-        J: Serialize,
-    {
+    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), Error> {
         self.save_check = true;
         if !self.update_golden_files {
             tracing::debug!("Golden files should not be updated, skipping save");
