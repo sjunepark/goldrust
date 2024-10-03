@@ -207,7 +207,7 @@ impl Goldrust {
                     )?;
                 let file_fmt = format!("{:?}", self.golden_file_path);
 
-                serde_json::to_writer_pretty(file, "json").inspect_err(|_e| {
+                serde_json::to_writer_pretty(file, &content).inspect_err(|_e| {
                     tracing::error!(file = file_fmt, "Error writing content to file")
                 })?;
             }
