@@ -199,11 +199,13 @@ impl Goldrust {
 
                 serde_json::to_writer_pretty(file, &content).inspect_err(|_e| {
                     tracing::error!(file = file_fmt, "Error writing content to file")
-                })
+                })?;
             }
             #[cfg(feature = "image")]
-            Filetype::Image(content) => content.save(self.golden_file_path),
-        }?;
+            Filetype::Image(content) => {
+                content.save(&self.golden_file_path)?;
+            }
+        };
         tracing::debug!(?self.golden_file_path, "Saved content to golden file");
 
         Ok(())

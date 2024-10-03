@@ -19,10 +19,10 @@ watch-test-integration:
 # Individual commands
 
 test name="":
-    cargo test --all-targets {{name}} -- --nocapture
+    cargo test --all-targets --all-features {{name}} -- --nocapture
 
 example name="":
-    cargo run --example {{name}}
+    cargo run --all-features --example {{name}}
 
 doc:
-    cargo doc --no-deps --open
+    cargo doc --all-features --no-deps --open
