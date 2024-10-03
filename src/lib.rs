@@ -81,12 +81,13 @@
 //!   and track each seemed like an unnecessary complexity for now)
 //!
 
+mod error;
 mod impl_check;
 
+use crate::error::GoldrustError;
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
-use std::io::Error;
 use std::path::{Path, PathBuf};
 
 assert_impl_commons_without_default!(Goldrust);
@@ -177,7 +178,7 @@ impl Goldrust {
     /// This method should be called when required,
     /// or Goldrust will panic when dropped.
     #[tracing::instrument(skip(self, content))]
-    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), Error> {
+    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), GoldrustError> {
         self.save_check = true;
         if !self.update_golden_files {
             tracing::debug!("Golden files should not be updated, skipping save");
