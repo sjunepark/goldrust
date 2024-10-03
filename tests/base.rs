@@ -1,7 +1,7 @@
 //! This example demonstrates how to use Goldrust to test a simple GET request.
 //! The⭐️s indicate where manual implementation is required.
 
-use goldrust::{goldrust, Filetype, Goldrust, ResponseSource};
+use goldrust::{goldrust, Content, Goldrust, ResponseSource};
 use std::path::Path;
 use tracing_subscriber::EnvFilter;
 use wiremock::matchers::{method, path};
@@ -14,7 +14,7 @@ async fn base() {
         .pretty()
         .init();
 
-    let mut goldrust = goldrust!();
+    let mut goldrust = goldrust!("json");
 
     let mock_server = MockServer::start().await;
 
@@ -68,7 +68,9 @@ async fn base() {
 
     // ⭐️ Using the closure to save content to the golden file
     goldrust
-        .save(Filetype::Json(response_body))
+        .save(Content::Json(
+            serde_json::to_value(response_body).expect("Failed to convert to serde_json::Value"),
+        ))
         .expect("Failed to save");
 }
 

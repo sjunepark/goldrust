@@ -87,16 +87,20 @@ mod impl_check;
 use crate::error::GoldrustError;
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use std::fmt::Formatter;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 
-assert_impl_commons_without_default!(Goldrust);
 assert_impl_commons_without_default!(ResponseSource);
 
 /// Create a new instance of Goldrust.
 ///
 /// A new instance of Goldrust should be created for each test.
 ///
+/// ### Parameters
+/// - `$file_extension`: The file extension of the golden file.
+///
+/// ### Environment Variables
 /// The configurations are based on the environment variables:
 /// - `GOLDRUST_DIR`: The directory where the golden files will be saved.
 ///    Defaults to `tests/golden`
@@ -108,28 +112,32 @@ assert_impl_commons_without_default!(ResponseSource);
 /// which is the preferred behavior for testing.
 #[macro_export]
 macro_rules! goldrust {
-    () => {
-        Goldrust::new({
-            fn f() {}
-            fn type_name_of_val<T>(_: T) -> &'static str {
-                std::any::type_name::<T>()
-            }
-            let mut name = type_name_of_val(f).strip_suffix("::f").unwrap_or("");
-            while let Some(rest) = name.strip_suffix("::{{closure}}") {
-                name = rest;
-            }
-            &name.replace("::", "-")
-        })
+    ($file_extension:expr) => {
+        Goldrust::new(
+            {
+                fn f() {}
+                fn type_name_of_val<T>(_: T) -> &'static str {
+                    std::any::type_name::<T>()
+                }
+                let mut name = type_name_of_val(f).strip_suffix("::f").unwrap_or("");
+                while let Some(rest) = name.strip_suffix("::{{closure}}") {
+                    name = rest;
+                }
+                &name.replace("::", "-")
+            },
+            String::from($file_extension),
+        )
     };
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Serialize, Deserialize, Display)]
+#[derive(Clone, Debug, Display)]
 #[display("{update_golden_files}, {golden_file_path:?}, {response_source}, {save_check}")]
 pub struct Goldrust {
     update_golden_files: bool,
     /// The path to the golden file,
     /// which was automatically generated based on the thread name of the test
     pub golden_file_path: PathBuf,
+    pub file_extension: String,
     pub response_source: ResponseSource,
     pub save_check: bool,
 }
@@ -142,10 +150,11 @@ impl Goldrust {
     /// Golden file names are based on the thread name of the test.
     /// (e.g. `test::test_name` → `test-test_name.json`)
     #[tracing::instrument]
-    pub fn new(function_name: &str) -> Self {
+    pub fn new(function_name: &str, file_extension: String) -> Self {
         let golden_file_dir =
             std::env::var("GOLDRUST_DIR").unwrap_or("tests/resources/golden".to_string());
-        let golden_file_path = Path::new(&golden_file_dir).join(format!("{}.json", function_name));
+        let golden_file_path =
+            Path::new(&golden_file_dir).join(format!("{}.{}", function_name, file_extension));
 
         let allow_external_api_call: bool = std::env::var("GOLDRUST_ALLOW_EXTERNAL_API_CALL")
             .unwrap_or("false".to_string())
@@ -168,6 +177,7 @@ impl Goldrust {
         Self {
             update_golden_files,
             golden_file_path,
+            file_extension,
             response_source,
             save_check,
         }
@@ -178,7 +188,7 @@ impl Goldrust {
     /// This method should be called when required,
     /// or Goldrust will panic when dropped.
     #[tracing::instrument(skip(self, content))]
-    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), GoldrustError> {
+    pub fn save(&mut self, content: Content) -> Result<(), GoldrustError> {
         self.save_check = true;
         if !self.update_golden_files {
             tracing::debug!("Golden files should not be updated, skipping save");
@@ -186,7 +196,7 @@ impl Goldrust {
         }
 
         match content {
-            Filetype::Json(content) => {
+            Content::Json(content) => {
                 let file = OpenOptions::new()
                     .write(true)
                     .create(true)
@@ -197,12 +207,12 @@ impl Goldrust {
                     )?;
                 let file_fmt = format!("{:?}", self.golden_file_path);
 
-                serde_json::to_writer_pretty(file, &content).inspect_err(|_e| {
+                serde_json::to_writer_pretty(file, "json").inspect_err(|_e| {
                     tracing::error!(file = file_fmt, "Error writing content to file")
                 })?;
             }
             #[cfg(feature = "image")]
-            Filetype::Image(content) => {
+            Content::Image(content) => {
                 content.save(&self.golden_file_path)?;
             }
         };
@@ -271,10 +281,21 @@ pub enum ResponseSource {
     External,
 }
 
-pub enum Filetype<J: Serialize> {
-    Json(J),
+#[derive(Clone, Debug)]
+pub enum Content {
+    Json(serde_json::Value),
     #[cfg(feature = "image")]
     Image(image::DynamicImage),
+}
+
+impl std::fmt::Display for Content {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Content::Json(_) => write!(f, "Json"),
+            #[cfg(feature = "image")]
+            Content::Image(_) => write!(f, "Image"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -283,7 +304,7 @@ mod tests {
 
     #[test]
     fn display_goldrust() {
-        let goldrust = goldrust!();
+        let goldrust = goldrust!("json");
         assert_eq!(
             format!("{}", goldrust),
             format!(
