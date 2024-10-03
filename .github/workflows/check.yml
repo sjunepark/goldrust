@@ -117,7 +117,7 @@ jobs:
       matrix:
         # `inspect_err` was stabilized in 1.76.0.
         # [#116866](https://github.com/rust-lang/rust/pull/116866)
-        msrv: [ "1.76.0" ]
+        msrv: [ "1.79.0" ]
     steps:
       - uses: actions/checkout@v4
         with:
