@@ -177,27 +177,35 @@ impl Goldrust {
     /// This method should be called when required,
     /// or Goldrust will panic when dropped.
     #[tracing::instrument(skip(self, content))]
-    pub fn save<T>(&mut self, content: T) -> Result<(), Error>
+    pub fn save<J: Serialize>(&mut self, content: Filetype<J>) -> Result<(), Error>
     where
-        T: serde::Serialize,
-        for<'de> T: serde::Deserialize<'de>,
-        T: std::fmt::Debug,
+        J: Serialize,
     {
         self.save_check = true;
         if !self.update_golden_files {
             tracing::debug!("Golden files should not be updated, skipping save");
             return Ok(());
         }
-        let file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&self.golden_file_path)
-            .inspect_err(|_e| tracing::error!(?self.golden_file_path, "Error opening file"))?;
-        let file_fmt = format!("{:?}", self.golden_file_path);
 
-        serde_json::to_writer_pretty(file, &content)
-            .inspect_err(|_e| tracing::error!(file = file_fmt, "Error writing content to file"))?;
+        match content {
+            Filetype::Json(content) => {
+                let file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(&self.golden_file_path)
+                    .inspect_err(
+                        |_e| tracing::error!(?self.golden_file_path, "Error opening file"),
+                    )?;
+                let file_fmt = format!("{:?}", self.golden_file_path);
+
+                serde_json::to_writer_pretty(file, &content).inspect_err(|_e| {
+                    tracing::error!(file = file_fmt, "Error writing content to file")
+                })
+            }
+            #[cfg(feature = "image")]
+            Filetype::Image(content) => content.save(self.golden_file_path),
+        }?;
         tracing::debug!(?self.golden_file_path, "Saved content to golden file");
 
         Ok(())
@@ -261,6 +269,12 @@ impl Drop for Goldrust {
 pub enum ResponseSource {
     Local,
     External,
+}
+
+pub enum Filetype<J: Serialize> {
+    Json(J),
+    #[cfg(feature = "image")]
+    Image(image::DynamicImage),
 }
 
 #[cfg(test)]

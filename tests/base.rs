@@ -1,7 +1,7 @@
 //! This example demonstrates how to use Goldrust to test a simple GET request.
 //! The⭐️s indicate where manual implementation is required.
 
-use goldrust::{goldrust, Goldrust, ResponseSource};
+use goldrust::{goldrust, Filetype, Goldrust, ResponseSource};
 use std::path::Path;
 use tracing_subscriber::EnvFilter;
 use wiremock::matchers::{method, path};
@@ -67,7 +67,9 @@ async fn base() {
     );
 
     // ⭐️ Using the closure to save content to the golden file
-    goldrust.save(response_body).expect("Failed to save");
+    goldrust
+        .save(Filetype::Json(response_body))
+        .expect("Failed to save");
 }
 
 fn normalize_json(json: &str) -> String {
