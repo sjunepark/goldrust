@@ -1,28 +1,72 @@
-set dotenv-required
+# Tests are run by nextest
+# --all-features is not passed since `minify-html` is a optional dependency which takes long to compile,
+# and is not going to be included in local development.
+# CI will run with the `--all-features` flag.
+
+set dotenv-required := true
 set dotenv-filename := ".env.example"
+
+watch_base := "cargo watch -q -c -i 'tests/resources/**/*'"
+no_capture := if env_var("TEST_LOG") == "true" { "--no-capture" } else { "" }
+
+run bin="":
+    clear
+    cargo run --bin {{ bin }} -r
 
 # Watch
 
 watch:
-     cargo watch -q -c -x "c"
+    {{ watch_base }} -x "c --all-targets"
 
 watch-test name="":
-    cargo watch -q -c -s "just test {{name}}"
+    {{ watch_base }} -s "just test {{ name }}"
 
-watch-example name="":
-    cargo watch -q -c -x "run --example {{name}}"
+watch-test-pkg pkg:
+    {{ watch_base }} -s "just test-pkg {{ pkg }}"
+
+watch-example package name:
+    {{ watch_base }} -s "just example {{ package }} {{ name }}"
 
 watch-test-integration:
-    cargo watch -q -c -x 'test --test "*" -- --nocapture'
+    {{ watch_base }} -x "nextest run -E 'kind(test)'"
 
+watch-bench name="":
+    {{ watch_base }} -s "just bench {{ name }}"
 
 # Individual commands
 
 test name="":
-    cargo test --all-targets --all-features {{name}} -- --nocapture
+    clear
+    cargo nextest run {{ no_capture }} --all-targets {{ name }}
 
-example name="":
-    cargo run --all-features --example {{name}}
+test-pkg pkg:
+    clear
+    cargo nextest run --all-targets --package {{ pkg }}
 
-doc:
-    cargo doc --all-features --no-deps --open
+test-doc:
+    clear
+    cargo test --doc
+
+check-lib-bins:
+    clear
+    cargo check --lib --bins
+
+example package name:
+    clear
+    cargo run -p {{ package }} --example {{ name }}
+
+bench package name="":
+    clear
+    cargo bench --all-features --all-targets -p {{ package }} {{ name }}
+
+cov:
+    clear
+    rustup run nightly cargo llvm-cov nextest --open --lib --locked
+
+lint:
+    clear
+    cargo clippy --all-targets --locked
+
+tree crate:
+    clear
+    cargo tree --all-features --all-targets -i {{ crate }}

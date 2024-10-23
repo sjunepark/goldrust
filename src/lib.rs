@@ -99,6 +99,9 @@ assert_impl_commons_without_default!(ResponseSource);
 ///
 /// ### Parameters
 /// - `$file_extension`: The file extension of the golden file.
+///   The `function_id` will be automatically used as the current function name
+///   which this macro is called from.
+/// - `$function_id`(optional): The identifier of the function.
 ///
 /// ### Environment Variables
 /// The configurations are based on the environment variables:
@@ -128,9 +131,12 @@ macro_rules! goldrust {
             String::from($file_extension),
         )
     };
+    ($function_id:expr, $file_extension:expr) => {
+        Goldrust::new($function_id, String::from($file_extension))
+    };
 }
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Serialize, Deserialize, Display)]
 #[display("{update_golden_files}, {golden_file_path:?}, {response_source}, {save_check}")]
 pub struct Goldrust {
     update_golden_files: bool,
@@ -141,6 +147,7 @@ pub struct Goldrust {
     pub response_source: ResponseSource,
     pub save_check: bool,
 }
+assert_impl_commons_without_default!(Goldrust);
 
 impl Goldrust {
     /// Create a new instance of GoldrustBuilder
@@ -281,7 +288,7 @@ pub enum ResponseSource {
     External,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Content {
     Json(serde_json::Value),
     #[cfg(feature = "image")]
