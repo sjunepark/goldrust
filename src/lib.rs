@@ -131,7 +131,7 @@ macro_rules! goldrust {
             String::from($file_extension),
         )
     };
-    ($function_id:expr, $file_extension:expr) => {
+    ($file_extension:expr, $function_id:expr) => {
         Goldrust::new($function_id, String::from($file_extension))
     };
 }

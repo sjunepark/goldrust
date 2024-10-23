@@ -70,3 +70,6 @@ lint:
 tree crate:
     clear
     cargo tree --all-features --all-targets -i {{ crate }}
+
+tag version:
+    git tag -a v{{ version }} -m "Version {{ version }}"
