@@ -82,14 +82,47 @@
 //!
 
 mod error;
-mod impl_check;
 
-use crate::error::GoldrustError;
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
+
+use crate::error::GoldrustError;
+
+// region: Macros
+macro_rules! assert_impl_commons_without_default {
+    ($type:ty) => {
+        static_assertions::assert_impl_all!($type: Clone, Eq, PartialEq, Ord, PartialOrd, std::fmt::Debug, std::fmt::Display, Send, Sync, serde::Serialize, serde::de::DeserializeOwned);
+    };
+}
+
+#[cfg(test)]
+mod tests_macro {
+    use derive_more::Display;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Display, Serialize, Deserialize)]
+    struct CommStruct {
+        field: String,
+    }
+
+    impl Default for CommStruct {
+        fn default() -> Self {
+            Self {
+                field: "default".to_string(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_assert_impl_commons_without_default() {
+        assert_impl_commons_without_default!(CommStruct);
+    }
+}
+
+// endregion
 
 assert_impl_commons_without_default!(ResponseSource);
 
@@ -131,7 +164,7 @@ macro_rules! goldrust {
             String::from($file_extension),
         )
     };
-    ($function_id:expr, $file_extension:expr) => {
+    ($file_extension:expr, $function_id:expr) => {
         Goldrust::new($function_id, String::from($file_extension))
     };
 }
