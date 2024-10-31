@@ -162,7 +162,7 @@ macro_rules! goldrust {
         })
     };
     ($file_extension:expr, $function_id:expr) => {
-        Goldrust::new($function_id, String::from($file_extension))
+        Goldrust::new($file_extension, $function_id)
     };
 }
 
