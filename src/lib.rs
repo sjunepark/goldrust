@@ -83,13 +83,12 @@
 
 mod error;
 
+use crate::error::GoldrustError;
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
-
-use crate::error::GoldrustError;
 
 // region: Macros
 macro_rules! assert_impl_commons_without_default {
@@ -132,9 +131,9 @@ assert_impl_commons_without_default!(ResponseSource);
 ///
 /// ### Parameters
 /// - `$file_extension`: The file extension of the golden file.
-///   The `function_id` will be automatically used as the current function name
-///   which this macro is called from.
 /// - `$function_id`(optional): The identifier of the function.
+///   If not provided, the `function_id` will be automatically used as the current function name
+///   which this macro is called from.
 ///
 /// ### Environment Variables
 /// The configurations are based on the environment variables:
@@ -149,20 +148,17 @@ assert_impl_commons_without_default!(ResponseSource);
 #[macro_export]
 macro_rules! goldrust {
     ($file_extension:expr) => {
-        Goldrust::new(
-            {
-                fn f() {}
-                fn type_name_of_val<T>(_: T) -> &'static str {
-                    std::any::type_name::<T>()
-                }
-                let mut name = type_name_of_val(f).strip_suffix("::f").unwrap_or("");
-                while let Some(rest) = name.strip_suffix("::{{closure}}") {
-                    name = rest;
-                }
-                &name.replace("::", "-")
-            },
-            String::from($file_extension),
-        )
+        Goldrust::new($file_extension, {
+            fn f() {}
+            fn type_name_of_val<T>(_: T) -> &'static str {
+                std::any::type_name::<T>()
+            }
+            let mut name = type_name_of_val(f).strip_suffix("::f").unwrap_or("");
+            while let Some(rest) = name.strip_suffix("::{{closure}}") {
+                name = rest;
+            }
+            &name.replace("::", "-")
+        })
     };
     ($file_extension:expr, $function_id:expr) => {
         Goldrust::new($function_id, String::from($file_extension))
@@ -190,7 +186,7 @@ impl Goldrust {
     /// Golden file names are based on the thread name of the test.
     /// (e.g. `test::test_name` → `test-test_name.json`)
     #[tracing::instrument]
-    pub fn new(function_name: &str, file_extension: String) -> Self {
+    pub fn new(file_extension: &str, function_name: &str) -> Self {
         let golden_file_dir =
             std::env::var("GOLDRUST_DIR").unwrap_or("tests/resources/golden".to_string());
         let golden_file_path =
@@ -217,7 +213,7 @@ impl Goldrust {
         Self {
             update_golden_files,
             golden_file_path,
-            file_extension,
+            file_extension: file_extension.to_string(),
             response_source,
             save_check,
         }
@@ -237,14 +233,7 @@ impl Goldrust {
 
         match content {
             Content::Json(content) => {
-                let file = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(&self.golden_file_path)
-                    .inspect_err(
-                        |_e| tracing::error!(?self.golden_file_path, "Error opening file"),
-                    )?;
+                let file = empty_file(&self.golden_file_path)?;
                 let file_fmt = format!("{:?}", self.golden_file_path);
 
                 serde_json::to_writer_pretty(file, &content).inspect_err(|_e| {
@@ -255,11 +244,29 @@ impl Goldrust {
             Content::Image(content) => {
                 content.save(&self.golden_file_path)?;
             }
+            #[cfg(feature = "zip")]
+            Content::Zip(content) => {
+                let mut file = empty_file(&self.golden_file_path)?;
+                let file_fmt = format!("{:?}", self.golden_file_path);
+
+                file.write_all(&content).inspect_err(|_e| {
+                    tracing::error!(file = file_fmt, "Error writing content to file")
+                })?;
+            }
         };
         tracing::debug!(?self.golden_file_path, "Saved content to golden file");
 
         Ok(())
     }
+}
+
+fn empty_file(path: &Path) -> Result<File, GoldrustError> {
+    Ok(OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .inspect_err(|_e| tracing::error!(?path, "Error opening file"))?)
 }
 
 /// Evaluates the response source based on the configuration
@@ -321,11 +328,13 @@ pub enum ResponseSource {
     External,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Debug)]
 pub enum Content {
     Json(serde_json::Value),
     #[cfg(feature = "image")]
     Image(image::DynamicImage),
+    #[cfg(feature = "zip")]
+    Zip(Vec<u8>),
 }
 
 impl std::fmt::Display for Content {
@@ -334,6 +343,8 @@ impl std::fmt::Display for Content {
             Content::Json(_) => write!(f, "Json"),
             #[cfg(feature = "image")]
             Content::Image(_) => write!(f, "Image"),
+            #[cfg(feature = "zip")]
+            Content::Zip(_) => write!(f, "Zip"),
         }
     }
 }
