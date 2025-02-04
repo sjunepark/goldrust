@@ -9,7 +9,7 @@ license = "MIT"
 keywords = ["testing", "mocking", "golden-file"]
 
 [dependencies]
-derive_more = { version = "1.0.0", features = ["display"] }
+derive_more = { version = "2.0.1", features = ["display"] }
 image = { version = "0.25.4", optional = true }
 serde = { version = "1.0.213", features = ["derive"] }
 serde_json = "1.0.132"
